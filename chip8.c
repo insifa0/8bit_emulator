@@ -64,9 +64,23 @@ void emulate_cycle(Chip8CPU* cpu) {
     //opcode un sadece ilk hanesi(kategori) okumak icin 0xF00 ile maskele
     //bitwise AND (maskeleme) 0xF000 sadece ilk haneyi göster, gerisini gizle.
     switch (opcode & 0xF000) {
-        case 0xA000:
-            cpu->I = opcode &0x0FFF;
+
+        case 0x0000:
+            if(opcode == 0x00E0){
+                //0x00E0: ekrani temizler 
+                memset(cpu->display, 0,sixeof(cpu->display));
+            }
             break;
+
+        case 0x1000:
+            //1NNN: program counter'i NNN adresine eşitle
+            cpu->PC = opcode & 0x0FFF;
+            break;
+
+        case 0xA000:
+            cpu->I = opcode & 0x0FFF;
+            break;
+        
         default:
         printf("bilinmeyen ve ya henuz yazilmayan opcode: 0x%X\n", opcode);
         break;        
