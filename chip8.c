@@ -52,3 +52,24 @@ bool load_roam(Chip8CPU* cpu, const char* filename){
     return true;
 }
 
+void emulate_cycle(Chip8CPU* cpu) {
+    //1)FETCH (getir): Bellekten 2 byte'lik komutu oku
+    //memory[PC] ilk byte'ı, memory[PC+1] ikinci byte'ı gosterir
+    uint16_t opcode =(cpu->memory[cpu->PC] << 8) | cpu->memory[cpu->PC + 1];
+    
+    //sonraki komut icin program counter ı 2 arttır
+    cpu->PC += 2;
+
+    //2)DECODE & EXECUTE (coz ve calistir)
+    //opcode un sadece ilk hanesi(kategori) okumak icin 0xF00 ile maskele
+    //bitwise AND (maskeleme) 0xF000 sadece ilk haneyi göster, gerisini gizle.
+    switch (opcode & 0xF000) {
+        case 0xA000:
+            cpu->I = opcode &0x0FFF;
+            break;
+        default:
+        printf("bilinmeyen ve ya henuz yazilmayan opcode: 0x%X\n", opcode);
+        break;        
+    }
+}
+

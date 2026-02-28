@@ -21,5 +21,6 @@ typedef struct {
 
 void init_chip8(Chip8CPU* cpu);
 bool load_roam(Chip8CPU* cpu, const char* filename);
+void emulate_cycle(Chip8CPU* cpu);
 
 #endif 
