@@ -14,7 +14,6 @@ int main() {
     //registerlara elle yazdık 0xA123 
 
     printf("calismadan once:\n");
-    printf("PC: 0x%X\n\n", cpu.PC, cpu.I);
     printf("PC: 0x%X, I: 0x%X\n\n", cpu.PC, cpu.I);
 
     //3 islemci dongusu sadece 1 kez calistir

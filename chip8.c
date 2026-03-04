@@ -68,7 +68,7 @@ void emulate_cycle(Chip8CPU* cpu) {
         case 0x0000:
             if(opcode == 0x00E0){
                 //0x00E0: ekrani temizler 
-                memset(cpu->display, 0,sixeof(cpu->display));
+                memset(cpu->display, 0, sizeof(cpu->display));
             }
             break;
 
@@ -80,6 +80,51 @@ void emulate_cycle(Chip8CPU* cpu) {
         case 0xA000:
             cpu->I = opcode & 0x0FFF;
             break;
+        
+        //6XNN: VX register ina NN degerini ata (Ornek: V0 = 25)
+        case 0x6000:
+            cpu->V[opcode &0x0F00 >> 8] = opcode & 0x00FF;
+            break;
+
+        //7XNN: VX register ina NN degerini ekle (ornek: V0 = V0 + 5)
+        case 0x7000:
+            cpu->V[(opcode & 0xF00) >> 8] += opcode & 0x00FF;
+            break;
+
+        //DXYN: Ekran grafik (sprite) cizme komutu
+        case 0xD000: {
+            // X ve Y kordinatlarini registerlardan al.
+            // %64 ve %32 ile ekran sinirleari icinde kalmasini sagla.
+            uint8_t x = cpu->V[(opcode & 0xF000) >> 8] % 64;
+            uint8_t y = cpu->V[(opcode & 0xF000) >> 4] % 32;
+            uint8_t height = opcode & 0x000F; //Seklin yuksekligi (satir sayisi)
+
+            //VF registerini (Carpisma bayragi) once 0 yap
+            cpu->V[0xF] = 0;
+
+            //Satirlari tek tek don
+            for(int row = 0; row < height; row++){
+                //I registerinin gosterdigi adresten 1 baytlik piksel verisini ak
+                uint8_t sprite_byte = cpu->memory[cpu->I + row];
+
+                //1 bayt in icindeki 8 biti (sutun tektek don)
+                for(int col = 0; col < 8 ; col++){
+                    //eger o anki bir 1 ise (yani cizilecek bir pikselse)
+                    if((sprite_byte & (0x80 >> col)) != 0){
+                        //cizilecek yer ekranin icinde mi diye kontrol et
+                        if(x + col < 64 && y +row < 32){
+                            //Hedefteki piksel zaten 1 (acik) ise carpisma var demektir
+                            if(cpu->display[(y + row) * 64 + (x + col)]== 1) {
+                                cpu->V[0xF] = 1; //VF bayragini 1 yap
+                            }
+                            // XOR mantigi ile pikseli ciz veya sil (^= 1)
+                            cpu->display[(y + row) * 64 + (x + col)] ^= 1;
+                        }
+                }
+            }
+            break;
+        }
+
         
         default:
         printf("bilinmeyen ve ya henuz yazilmayan opcode: 0x%X\n", opcode);
