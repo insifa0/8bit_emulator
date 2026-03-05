@@ -83,12 +83,12 @@ void emulate_cycle(Chip8CPU* cpu) {
         
         //6XNN: VX register ina NN degerini ata (Ornek: V0 = 25)
         case 0x6000:
-            cpu->V[opcode &0x0F00 >> 8] = opcode & 0x00FF;
+            cpu->V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
             break;
 
         //7XNN: VX register ina NN degerini ekle (ornek: V0 = V0 + 5)
         case 0x7000:
-            cpu->V[(opcode & 0xF00) >> 8] += opcode & 0x00FF;
+            cpu->V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
             break;
 
         //DXYN: Ekran grafik (sprite) cizme komutu
@@ -120,15 +120,67 @@ void emulate_cycle(Chip8CPU* cpu) {
                             // XOR mantigi ile pikseli ciz veya sil (^= 1)
                             cpu->display[(y + row) * 64 + (x + col)] ^= 1;
                         }
+                    }
                 }
             }
             break;
         }
 
+        //EXXX: Klavye (Input) kontrolleri
+        case 0xE000:
+            if((opcode & 0x00FF) == 0x009E){
+                //EX9E: Eger VX register indaki tus basiliysa, bir sonraki komutu atla
+                uint8_t key = cpu->V[(opcode & 0x0F00) >> 8];
+                if(cpu->keypad[key]){
+                    cpu->PC += 2;
+                }
+            } else if ((opcode & 0x00FF) == 0x00A1) {
+                // EXA1: Eger VX register'indaki tus basili DEGILSE, bir sonraki komutu atla
+                uint8_t key = cpu->V[(opcode & 0x0F00) >> 8];
+                if(!cpu->keypad[key]){
+                    cpu->PC += 2;
+                }
+            }
+            break;
+        
+        //FXXX: Zamanlayicilar ve bellek
+        case 0xF000:
+            switch(opcode & 0x00FF){
+                //FX07: VX = delay_timer(gecikme degerini oku)
+                case 0x0007:
+                    cpu->V[(opcode & 0x0F00) >> 8] = cpu->delay_timer;
+                    break;
+                //FX15: delay_timer = VX (geceikme degerini ayarla)
+                case 0x0015:
+                    cpu->delay_timer = cpu->V[(opcode & 0x0F00) >> 8];
+                    break;
+                //FX18: sound_timer =VX (Ses degerini ayarla)
+                case 0x0018:
+                    cpu->sound_timer = cpu->V[(opcode & 0x0F00) >> 8];
+                    break;
+                }
+            break;
+
+
         
         default:
-        printf("bilinmeyen ve ya henuz yazilmayan opcode: 0x%X\n", opcode);
+            printf("bilinmeyen ve ya henuz yazilmayan opcode: 0x%X\n", opcode);
         break;        
     }
 }
 
+void update_timers(Chip8CPU* cpu) {
+    // Eger gecikme zamanlayicisi sifirdan buyukse, bir azlat
+    if(cpu->delay_timer > 0){
+        cpu->delay_timer--;
+    }
+
+    //Eger ses zamanlayicisi sifirdan buyukse, bir azalt
+    if(cpu->sound_timer > 0){
+        if(cpu->sound_timer == 1){
+            // Sifira ulastiginde kisa bir "BEEP" sesi cikar
+            printf("BEEP!\n");
+        }
+        cpu->sound_timer--;
+    }
+}

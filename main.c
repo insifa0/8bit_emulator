@@ -1,28 +1,38 @@
 #include <stdio.h>
 #include "chip8.h"
+#include <SDL2/SDL.h>
 
-int main() {
-    Chip8CPU cpu;
 
-    //1 islemciyi baslat (PC'yi 0x200'e ayarla)
-    init_chip8(&cpu);
+// SDL2 kullanirken main fonksiyonu tam olarak bu parametrelerle yazilmalidir
+int main(int argc, char* argv[]) {
+    // 1. Kullanici komut satirindan bir ROM dosyasi girmediyse uyar
+    if (argc < 2) {
+        printf("Kullanim: %s <rom_dosyasi>\n", argv[0]);
+        return 1;
+    }
 
-    //2 hafizanin baslangic noktasina test kodu
-    //komut: 0xA123 yani Index register ına 0x123 degerini ata
-    cpu.memory[0x200] = 0xA1;
-    cpu.memory[0x201] = 0x23;
-    //registerlara elle yazdık 0xA123 
+    // 2. SDL'in Gorsel (Video) alt sistemini baslat
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("SDL Baslatilamadi! Hata: %s\n", SDL_GetError());
+        return 1;
+    }
 
-    printf("calismadan once:\n");
-    printf("PC: 0x%X, I: 0x%X\n\n", cpu.PC, cpu.I);
+    // 3. 640x320 boyutlarinda bir pencere olustur
+    // Orijinal 64x32 cozunurluk gunumuz ekranlarinda karinca kadar gorunur, bu yuzden 10 kat buyuttuk.
+    SDL_Window* window = SDL_CreateWindow("CHIP-8 Emulator",
+                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          640, 320, SDL_WINDOW_SHOWN);
 
-    //3 islemci dongusu sadece 1 kez calistir
-    emulate_cycle(&cpu);
+    // 4. Ekrana pikselleri cizecek olan donanim hizlandirmali Renderer'i (Cizici) olustur
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    //4 sonuclari kontrol et
-    printf("calistiktan sonra:\n");
-    printf("PC: 0x%X (Beklenen: 0x202)\n", cpu.PC);
-    printf("I: 0x%X (Beklenen: 0x123)\n", cpu.I);
+    // Simdilik pencerenin basariyla acildigini gormek icin 3 saniye (3000 ms) bekle
+    SDL_Delay(3000);
+
+    // 5. Program kapanirken RAM'de cop birakmamak icin SDL bilesenlerini yok et
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }
