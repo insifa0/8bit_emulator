@@ -19,8 +19,9 @@ typedef struct {
 
 } Chip8CPU; 
 
+// Fonksiyon prototiplerinin (Kimlik kartlari)
 void init_chip8(Chip8CPU* cpu);
-bool load_roam(Chip8CPU* cpu, const char* filename);
+bool load_rom(Chip8CPU* cpu, const char* filename);
 void emulate_cycle(Chip8CPU* cpu);
 void update_timers(Chip8CPU* cpu);
 

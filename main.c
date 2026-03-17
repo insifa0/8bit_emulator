@@ -1,6 +1,20 @@
 #include <stdio.h>
 #include "chip8.h"
 #include <SDL2/SDL.h>
+#include <math.h>
+
+// Basit kare dalga (BEEP) sesi ureten fonksiyon
+void audio_callback(void* userdata, Uint8* stream, int len) {
+    Sint16* buffer = (Sint16*)stream;
+    int length = len / 2; // 16-bit ses ornekleri (2 byte)
+    static int sample_index = 0;
+
+    for(int i = 0; i < length; i++, sample_index++) {
+        // Kare dalga uretimi ve ses seviyesi (genlik) ayari
+        // 3000 genliginde (cok yuksek olmayan) bir ses
+        buffer[i] = ((sample_index / 20) % 2) ? 3000 : -3000;
+    }
+}
 
 
 // SDL2 kullanirken main fonksiyonu tam olarak bu parametrelerle yazilmalidir
@@ -11,22 +25,29 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // 2. SDL'in Gorsel (Video) alt sistemini baslat
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL Baslatilamadi! Hata: %s\n", SDL_GetError());
-        return 1;
-    }
+    // 2. SDL'in Gorsel ve Ses alt sistemini baslat
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    
+    // Ses cihazini ayarla
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = 44100;
+    want.format = AUDIO_S16SYS;
+    want.channels = 1;
+    want.samples = 2048;
+    want.callback = audio_callback; // Yukarida yazdigimiz ses ureteci
+
+    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     
     Chip8CPU cpu;
     init_chip8(&cpu);
-    if(!load_rom(cpu, argv[1])){
+    if(!load_rom(&cpu, argv[1])){
         printf("ROM dosyasi acilmadi!\n");
         return 1;
     }
 
     // 3. 640x320 boyutlarinda bir pencere olustur
     // Orijinal 64x32 cozunurluk gunumuz ekranlarinda karinca kadar gorunur, bu yuzden 10 kat buyuttuk. SDL ve Pencere ayarlari
-    SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("CHIP-8 Emulator",
                                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                           640, 320, SDL_WINDOW_SHOWN);
@@ -35,7 +56,7 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
     //3.Ekranboyutlarına 64*32 bos tuval
-    SDL_Texture* texture = SDL_CreateTExture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 64, 32);
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 64, 32);
 
     // 4. SDL'in anlayacagi 32-bit (RGBA) renk formatinda piksellerimizi tutacak dizi
     uint32_t pixels[64 * 32];
@@ -70,7 +91,7 @@ int main(int argc, char* argv[]) {
                     case SDLK_v: cpu.keypad[0xF] = true; break;
                 }
             }
-            
+
             // Tustan el cekildiginde (0 yap)
             else if (event.type == SDL_KEYUP) {
                 switch (event.key.keysym.sym) {
@@ -115,20 +136,24 @@ int main(int argc, char* argv[]) {
         //e) Zamanlayicilari
         update_timers(&cpu);
 
+        // Eger ses sayaci 0'dan buyukse sesi ac, degilse duraklat
+        if (cpu.sound_timer > 0) {
+            SDL_PauseAudioDevice(audio_device, 0); // Sesi baslat
+        } else {
+            SDL_PauseAudioDevice(audio_device, 1); // Sesi sustur
+        }
+
         // F) Islemciyi yavaşlatmak icin delay
         SDL_Delay(2);
     }
 
-
-    
-
-
-
     // 6. Program kapanirken RAM'de cop birakmamak icin SDL bilesenlerini yok et.
     SDL_DestroyTexture(texture);
+    SDL_CloseAudioDevice(audio_device);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
     return 0;
 }
+

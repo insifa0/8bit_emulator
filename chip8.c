@@ -24,7 +24,7 @@ void init_chip8(Chip8CPU* cpu){
     }
 }
 
-bool load_roam(Chip8CPU* cpu, const char* filename){
+bool load_rom(Chip8CPU* cpu, const char* filename){
     //Dosyayi binary formatta okuma modunda (rb-read binary) ac.
     FILE* file = fopen(filename, "rb");
     if(file == NULL){
@@ -69,6 +69,10 @@ void emulate_cycle(Chip8CPU* cpu) {
             if(opcode == 0x00E0){
                 //0x00E0: ekrani temizler 
                 memset(cpu->display, 0, sizeof(cpu->display));
+            } else if (opcode == 0x00EE) {
+                // 00EE: Subroutine'den don (RET)
+                cpu->SP--;
+                cpu->PC = cpu->stack[cpu->SP];
             }
             break;
 
@@ -77,10 +81,31 @@ void emulate_cycle(Chip8CPU* cpu) {
             cpu->PC = opcode & 0x0FFF;
             break;
 
-        case 0xA000:
-            cpu->I = opcode & 0x0FFF;
+        case 0x2000:
+            // 2NNN: Subroutine cagir (CALL)
+            cpu->stack[cpu->SP] = cpu->PC;
+            cpu->SP++;
+            cpu->PC = opcode & 0x0FFF;
             break;
-        
+
+        case 0x3000:
+            // 3XNN: VX == NN ise bir sonraki komutu atla
+            if (cpu->V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
+                cpu->PC += 2;
+            break;
+
+        case 0x4000:
+            // 4XNN: VX != NN ise bir sonraki komutu atla
+            if (cpu->V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
+                cpu->PC += 2;
+            break;
+
+        case 0x5000:
+            // 5XY0: VX == VY ise bir sonraki komutu atla
+            if (cpu->V[(opcode & 0x0F00) >> 8] == cpu->V[(opcode & 0x00F0) >> 4])
+                cpu->PC += 2;
+            break;
+
         //6XNN: VX register ina NN degerini ata (Ornek: V0 = 25)
         case 0x6000:
             cpu->V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
@@ -91,12 +116,68 @@ void emulate_cycle(Chip8CPU* cpu) {
             cpu->V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
             break;
 
+        case 0x8000: {
+            uint8_t x = (opcode & 0x0F00) >> 8;
+            uint8_t y = (opcode & 0x00F0) >> 4;
+            switch(opcode & 0x000F) {
+                case 0: cpu->V[x] = cpu->V[y]; break; // 8XY0: LD
+                case 1: cpu->V[x] |= cpu->V[y]; break; // 8XY1: OR
+                case 2: cpu->V[x] &= cpu->V[y]; break; // 8XY2: AND
+                case 3: cpu->V[x] ^= cpu->V[y]; break; // 8XY3: XOR
+                case 4: { // 8XY4: ADD
+                    uint16_t sum = cpu->V[x] + cpu->V[y];
+                    cpu->V[0xF] = (sum > 255) ? 1 : 0;
+                    cpu->V[x] = sum & 0xFF;
+                    break;
+                }
+                case 5: { // 8XY5: SUB
+                    cpu->V[0xF] = (cpu->V[x] > cpu->V[y]) ? 1 : 0;
+                    cpu->V[x] -= cpu->V[y];
+                    break;
+                }
+                case 6: // 8XY6: SHR
+                    cpu->V[0xF] = cpu->V[x] & 0x1;
+                    cpu->V[x] >>= 1;
+                    break;
+                case 7: { // 8XY7: SUBN
+                    cpu->V[0xF] = (cpu->V[y] > cpu->V[x]) ? 1 : 0;
+                    cpu->V[x] = cpu->V[y] - cpu->V[x];
+                    break;
+                }
+                case 0xE: // 8XYE: SHL
+                    cpu->V[0xF] = (cpu->V[x] >> 7) & 0x1;
+                    cpu->V[x] <<= 1;
+                    break;
+            }
+            break;
+        }
+
+        case 0x9000:
+            // 9XY0: VX != VY ise bir sonraki komutu atla
+            if(cpu->V[(opcode & 0x0F00) >> 8] != cpu->V[(opcode & 0x00F0) >> 4])
+                cpu->PC += 2;
+            break;
+
+        case 0xA000:
+            cpu->I = opcode & 0x0FFF;
+            break;
+
+        case 0xB000:
+            // BNNN: Jump to NNN + V0
+            cpu->PC = (opcode & 0x0FFF) + cpu->V[0];
+            break;
+
+        case 0xC000:
+            // CXNN: VX = Rand() & NN
+            cpu->V[(opcode & 0x0F00) >> 8] = (rand() % 256) & (opcode & 0x00FF);
+            break;
+
         //DXYN: Ekran grafik (sprite) cizme komutu
         case 0xD000: {
             // X ve Y kordinatlarini registerlardan al.
             // %64 ve %32 ile ekran sinirleari icinde kalmasini sagla.
-            uint8_t x = cpu->V[(opcode & 0xF000) >> 8] % 64;
-            uint8_t y = cpu->V[(opcode & 0xF000) >> 4] % 32;
+            uint8_t x = cpu->V[(opcode & 0x0F00) >> 8] % 64;
+            uint8_t y = cpu->V[(opcode & 0x00F0) >> 4] % 32;
             uint8_t height = opcode & 0x000F; //Seklin yuksekligi (satir sayisi)
 
             //VF registerini (Carpisma bayragi) once 0 yap
